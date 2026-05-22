@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
+# Next.js
+dashboard/.next/
+dashboard/node_modules/
+dashboard/.vercel
+dashboard/.env*.local
+dashboard/next-env.d.ts
+dashboard/.turbo
+dashboard/.swc
+
+# Logs y bases locales
+*.log
+postgres-data/
+_screenshots/
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+.cursor/
+.claude/

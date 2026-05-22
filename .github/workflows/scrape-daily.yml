@@ -1,0 +1,61 @@
+name: scrape-daily
+
+on:
+  schedule:
+    # 08:00 UTC = 04:00 Chile (CLT)
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only specific scrapers (space-separated, e.g. 'paris ripley')"
+        required: false
+        default: ""
+      skip_verify:
+        description: "Saltarse el verifier de URLs"
+        required: false
+        default: "false"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium
+
+      - name: Install Playwright chromium (for MercadoLibre)
+        run: uv run playwright install --with-deps chromium
+
+      - name: Apply DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run alembic upgrade head
+
+      - name: Run scrapers (parallel)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          ARGS=""
+          for s in ${{ github.event.inputs.only }}; do
+            ARGS="$ARGS --only $s"
+          done
+          if [ "${{ github.event.inputs.skip_verify }}" = "true" ]; then
+            ARGS="$ARGS --skip-verify"
+          fi
+          uv run python -m scrapers.run_all --workers 5 $ARGS

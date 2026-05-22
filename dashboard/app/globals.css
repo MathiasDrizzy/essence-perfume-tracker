@@ -1,0 +1,267 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Paleta editorial: hueso, tinta, dorado champagne */
+  --bone: 244 237 223;          /* #F4EDDF — fondo principal */
+  --bone-soft: 250 246 238;     /* #FAF6EE — cards */
+  --ink: 26 22 18;              /* #1A1612 — tipografía */
+  --ink-soft: 60 53 45;         /* #3C352D — secundario */
+  --muted: 132 119 102;         /* #847766 — meta */
+  --gold: 184 134 67;           /* #B88643 — acento ámbar */
+  --gold-deep: 138 96 41;       /* #8A6029 — hover */
+  --rule: 218 207 188;          /* #DACFBC — hairline */
+  --burgundy: 119 38 38;        /* #772626 — alertas/máx */
+  --olive: 74 82 52;            /* #4A5234 — secundario chart */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bone: 17 15 13;
+    --bone-soft: 38 32 26;       /* notablemente más claro que bone */
+    --ink: 244 237 223;
+    --ink-soft: 218 207 188;
+    --muted: 153 140 122;
+    --gold: 201 161 97;
+    --gold-deep: 224 188 124;
+    --rule: 54 46 38;
+    --burgundy: 200 90 90;
+    --olive: 156 169 121;
+  }
+}
+
+html,
+body {
+  background: rgb(var(--bone));
+  color: rgb(var(--ink));
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Grano sutil sobre el fondo entero — toque de impresión editorial */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  z-index: 100;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+.font-display {
+  font-family: "Fraunces", "Times New Roman", serif;
+  font-feature-settings: "ss01", "ss03", "salt";
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-feature-settings: "ss01", "tnum";
+}
+
+/* Tabular numerals para precios */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pulse sutil para "mín" badge */
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.shimmer {
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* (Las clases .reveal* se conservan pero sin animación — eliminadas a pedido
+ * del usuario porque distraía. No remover las clases del JSX, son inertes.) */
+.reveal,
+.reveal-1,
+.reveal-2,
+.reveal-3,
+.reveal-4 {
+  /* no-op */
+}
+
+/* Hairline rule editorial */
+.hairline {
+  background: rgb(var(--rule));
+  height: 1px;
+  width: 100%;
+}
+
+/* Form inputs: estilo editorial — sin border-radius, underline only */
+.field {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--rule));
+  padding: 0.5rem 0;
+  color: rgb(var(--ink));
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 200ms;
+  width: 100%;
+}
+.field:focus {
+  border-bottom-color: rgb(var(--gold));
+}
+.field::placeholder {
+  color: rgb(var(--muted));
+}
+
+select.field {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgb(var(--ink-soft)) 50%),
+    linear-gradient(135deg, rgb(var(--ink-soft)) 50%, transparent 50%);
+  background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+  cursor: pointer;
+}
+
+/* Botón gold */
+.btn-gold {
+  background: rgb(var(--ink));
+  color: rgb(var(--bone));
+  padding: 0.75rem 1.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  transition: all 200ms;
+}
+.btn-gold:hover {
+  background: rgb(var(--gold-deep));
+  letter-spacing: 0.24em;
+}
+.btn-gold:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Eyebrow text editorial */
+.eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(var(--muted));
+  font-weight: 500;
+}
+
+/* Diagonal hover line para links */
+.link-editorial {
+  position: relative;
+  color: rgb(var(--ink));
+  transition: color 200ms;
+}
+.link-editorial::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgb(var(--gold));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.link-editorial:hover::after {
+  transform: scaleX(1);
+}
+
+/* Selección de texto */
+::selection {
+  background: rgb(var(--gold));
+  color: rgb(var(--bone));
+}
+
+/* Tabla editorial — sin borders pesados, solo hairlines */
+.table-editorial {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table-editorial thead th {
+  text-align: left;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(var(--muted));
+  padding: 0.75rem 1rem 0.75rem 0;
+  border-bottom: 1px solid rgb(var(--ink));
+  font-weight: 500;
+}
+.table-editorial tbody td {
+  padding: 1.1rem 1rem 1.1rem 0;
+  border-bottom: 1px solid rgb(var(--rule));
+  vertical-align: top;
+}
+.table-editorial tbody tr {
+  transition: background 200ms;
+}
+.table-editorial tbody tr:hover {
+  background: rgb(var(--bone-soft));
+}
+
+/* Retailer chip */
+.chip-retailer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--ink-soft));
+}
+.chip-retailer::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-color, rgb(var(--gold)));
+}
+
+/* Min-price badge */
+.badge-min {
+  background: rgb(var(--ink));
+  color: rgb(var(--bone));
+  padding: 2px 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Scrollbar sutil */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--rule));
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
