@@ -1,0 +1,35 @@
+name: probe-ripley
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install deps
+        run: uv sync --frozen
+      - name: Probe Ripley from datacenter IP
+        run: |
+          uv run python <<'PY'
+          from curl_cffi import requests
+          print("Testing Ripley accessibility from GH Actions IP")
+          urls = [
+              ("category",      "https://simple.ripley.cl/belleza/perfumeria"),
+              ("category page2","https://simple.ripley.cl/belleza/perfumeria?page=2"),
+              ("sitemap idx",   "https://simple.ripley.cl/sitemap.xml"),
+              ("sitemap prod 1","https://home.ripley.cl/products_sitemap.xml"),
+              ("product real",  "https://simple.ripley.cl/perfume-hombre-giorgio-armani-acqua-di-gio-profondo-eau-de-toilette-100ml-2000410149526p"),
+              ("product mpm",   "https://simple.ripley.cl/perfume-light-blue-edt-100-ml-refill-dolce-and-gabbana-mujer-mpm10003150229"),
+              ("home root",     "https://simple.ripley.cl/"),
+              ("API products",  "https://simple.ripley.cl/api/v1/products?category=perfumeria"),
+          ]
+          for label, url in urls:
+              try:
+                  r = requests.get(url, impersonate='chrome131', timeout=15, allow_redirects=True)
+                  print(f"  {r.status_code} ({len(r.text):>8} bytes)  [{label}]  {url[:80]}")
+              except Exception as e:
+                  print(f"  ERR ({type(e).__name__})  [{label}]  {url[:80]}")
+          PY
