@@ -58,4 +58,4 @@ jobs:
           if [ "${{ github.event.inputs.skip_verify }}" = "true" ]; then
             ARGS="$ARGS --skip-verify"
           fi
-          uv run python -m scrapers.run_all --workers 5 $ARGS
+          uv run python -m scrapers.run_all --workers 3 $ARGS

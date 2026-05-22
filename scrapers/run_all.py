@@ -119,10 +119,29 @@ def main(only: tuple[str, ...], workers: int, skip_alerts: bool, skip_verify: bo
             failures.append("alerts")
 
     total = int(time.time() - started)
-    if failures:
-        log.error("orchestrator_done_with_failures", failures=failures, elapsed_sec=total)
+    # Política de éxito: el workflow NO falla aunque uno o más scrapers individuales
+    # caigan (Ripley/ML típicamente bloqueados desde IPs datacenter, por ej.). Solo
+    # fallamos si verify_urls o alerts (la infraestructura propia) revientan, o si
+    # NINGÚN scraper logró correr.
+    infra_failures = [f for f in failures if f in ("verify_urls", "alerts")]
+    scraper_failures = [f for f in failures if f not in ("verify_urls", "alerts")]
+    successful_scrapers = len(targets) - len(scraper_failures)
+    if infra_failures or successful_scrapers == 0:
+        log.error(
+            "orchestrator_done_with_failures",
+            failures=failures,
+            elapsed_sec=total,
+        )
         sys.exit(1)
-    log.info("orchestrator_done", elapsed_sec=total)
+    if scraper_failures:
+        log.warning(
+            "orchestrator_done_with_partial_failures",
+            scraper_failures=scraper_failures,
+            successful=successful_scrapers,
+            elapsed_sec=total,
+        )
+    else:
+        log.info("orchestrator_done", elapsed_sec=total)
 
 
 if __name__ == "__main__":
