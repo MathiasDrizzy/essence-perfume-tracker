@@ -1,11 +1,18 @@
 """Scraper para MercadoLibre Chile.
 
-La API pública (api.mercadolibre.com) ahora exige auth para búsquedas;
-y curl_cffi es bloqueado por su WAF. Estrategia: Playwright + stealth contra
-la categoría de fragancias paginada.
+⚠️ MercadoLibre 2026: PolicyAgent bloquea el API público
+(`api.mercadolibre.com/sites/MLC/search`) incluso con OAuth Client Credentials.
+Solo Authorization Code (con login interactivo del usuario) destrabaría el endpoint
+de búsqueda. Para evitar fricción, scrapeamos el listado web con Playwright + stealth.
 
-ML cachea hasta ~2000 resultados por categoría sin filtros (40 páginas × 50).
-Para mayor cobertura, podemos extender en el futuro iterando por marca.
+Estrategia:
+- listado.mercadolibre.cl/perfume paginado con `_Desde_N` (offset 1, 51, 101…)
+- Playwright + playwright-stealth (la web detecta navegadores headless plain)
+- Para que funcione, la máquina necesita IP **no-datacenter** (Mac residencial chilena).
+  Desde GH Actions devuelve 0 productos (los 'suspicious-traffic') sin romper el workflow.
+
+Si en el futuro hacemos Authorization Code flow para el API, ver `_oauth_search` abajo
+como referencia.
 """
 
 from __future__ import annotations
@@ -16,8 +23,7 @@ from collections.abc import Iterable
 
 import click
 import structlog
-from playwright.async_api import async_playwright
-from playwright_stealth import Stealth
+from camoufox.async_api import AsyncCamoufox
 
 from scrapers.base import BaseScraper, RawProduct
 from scrapers.config import settings
@@ -26,11 +32,14 @@ log = structlog.get_logger()
 
 BASE_URL = "https://listado.mercadolibre.cl/perfume"
 PAGE_SIZE = 50
-MAX_PAGES = 40  # ~2000 productos
+MAX_PAGES_DEFAULT = 40  # ~2000 productos
 
 
 class MercadoLibreScraper(BaseScraper):
     retailer = "mercadolibre"
+
+    def __init__(self, max_pages: int | None = None) -> None:
+        self.max_pages = max_pages or MAX_PAGES_DEFAULT
 
     def fetch_products(self) -> Iterable[RawProduct]:
         return asyncio.run(self._fetch_async())
@@ -38,16 +47,18 @@ class MercadoLibreScraper(BaseScraper):
     async def _fetch_async(self) -> list[RawProduct]:
         results: list[RawProduct] = []
         seen_urls: set[str] = set()
-        async with Stealth().use_async(async_playwright()) as pw:
-            browser = await pw.chromium.launch(headless=True)
-            ctx = await browser.new_context(
-                user_agent=settings.scrape_user_agent,
-                locale="es-CL",
-                viewport={"width": 1280, "height": 900},
-            )
-            page = await ctx.new_page()
+        # Camoufox = Firefox con stealth a nivel C++ (parchea Canvas, WebGL,
+        # AudioContext, navigator props). Más resistente que Playwright stealth
+        # contra "suspicious-traffic" landing de ML.
+        async with AsyncCamoufox(
+            headless=True,
+            locale="es-CL",
+            geoip=True,
+            os=["macos"],
+        ) as browser:
+            page = await browser.new_page()
             consecutive_empty = 0
-            for page_num in range(1, MAX_PAGES + 1):
+            for page_num in range(1, self.max_pages + 1):
                 offset = (page_num - 1) * PAGE_SIZE + 1
                 url = BASE_URL if page_num == 1 else f"{BASE_URL}_Desde_{offset}"
 
@@ -70,7 +81,6 @@ class MercadoLibreScraper(BaseScraper):
 
                 await page.wait_for_timeout(int(settings.scrape_request_delay_sec * 1000))
 
-            await browser.close()
         return results
 
     async def _load_with_retries(self, page, url: str, max_attempts: int = 3) -> list:
@@ -88,24 +98,20 @@ class MercadoLibreScraper(BaseScraper):
 
     async def _extract_card(self, card) -> RawProduct | None:
         try:
-            # Título y URL
-            link = card.locator("a.poly-component__title, h3 a, a[class*='poly-component__title']").first
+            link = card.locator(
+                "a.poly-component__title, h3 a, a[class*='poly-component__title']"
+            ).first
             title = (await link.inner_text()).strip()
             url = await link.get_attribute("href")
             if not title or not url:
                 return None
-
-            # Precio: el span ".andes-money-amount__fraction" suele tener el primer precio (actual)
             price_nodes = await card.locator(".andes-money-amount__fraction").all_inner_texts()
             if not price_nodes:
                 return None
             price = _parse_clp(price_nodes[0])
             list_price = _parse_clp(price_nodes[1]) if len(price_nodes) > 1 else None
-
-            # SKU = MLC item id desde la URL
             m = re.search(r"MLC-?(\d+)", url)
             sku = m.group(0).replace("-", "") if m else None
-
             return RawProduct(
                 retailer=self.retailer,
                 retailer_sku=sku,
@@ -126,9 +132,10 @@ def _parse_clp(text: str) -> int | None:
 
 
 @click.command()
-def main() -> None:
+@click.option("--max-pages", type=int, default=None, help="Limit pages (smoke test).")
+def main(max_pages: int | None) -> None:
     """Scrape MercadoLibre Chile categoría perfumes."""
-    MercadoLibreScraper().run()
+    MercadoLibreScraper(max_pages=max_pages).run()
 
 
 if __name__ == "__main__":

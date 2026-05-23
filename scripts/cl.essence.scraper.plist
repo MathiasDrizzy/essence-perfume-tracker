@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>cl.essence.scraper</string>
+
+    <!-- Comando completo. Se reemplaza __PROJECT_DIR__ con la ruta real. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>cd "__PROJECT_DIR__" &amp;&amp; /opt/homebrew/bin/uv run python -m scrapers.run_all --workers 3 &gt;&gt; "__PROJECT_DIR__/_logs/scrape.log" 2&gt;&amp;1</string>
+    </array>
+
+    <!-- Corre todos los días a las 04:00 hora local del Mac (Chile = CLT) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Si el Mac estuvo dormido a las 04:00, ejecutar apenas despierte -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Logs estándar (también logueamos a _logs/scrape.log con timestamp) -->
+    <key>StandardOutPath</key>
+    <string>__PROJECT_DIR__/_logs/launchd.out</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT_DIR__/_logs/launchd.err</string>
+
+    <!-- Vars de entorno: el script lee .env, pero para Playwright/Camoufox a veces se necesita -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>LANG</key>
+        <string>es_CL.UTF-8</string>
+    </dict>
+
+    <!-- Si el job falla mil veces, no entrar en loop infinito -->
+    <key>ThrottleInterval</key>
+    <integer>3600</integer>
+</dict>
+</plist>

@@ -6,6 +6,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:password@localhost:5432/perfumes"
     telegram_bot_token: str = ""
+    ml_client_id: str = ""
+    ml_client_secret: str = ""
     scrape_user_agent: str = (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"

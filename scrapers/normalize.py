@@ -23,6 +23,183 @@ CONCENTRATIONS = [
     ("EDC", r"\b(e\.?d\.?c\.?|eau\s+de\s+cologne)\b"),
 ]
 
+# BRAND_ALIASES: variantes (lowercase, sin acentos) → forma canónica oficial.
+# Cubre: typos comunes, abreviaciones (YSL, JPG, CK), variantes con/sin espacios,
+# rebrandings (Paco Rabanne → Rabanne en 2023, pero unificamos a "Paco Rabanne"
+# para mantener histórico).
+BRAND_ALIASES: dict[str, str] = {
+    # Yves Saint Laurent
+    "ysl": "Yves Saint Laurent",
+    "yves saint laurent": "Yves Saint Laurent",
+    "yves saint lauren": "Yves Saint Laurent",  # typo común (sin la T final)
+    "yves saint-laurent": "Yves Saint Laurent",
+    "saint laurent": "Yves Saint Laurent",
+    # Jean Paul Gaultier
+    "jpg": "Jean Paul Gaultier",
+    "jean paul gaultier": "Jean Paul Gaultier",
+    "jean paul gaultter": "Jean Paul Gaultier",  # typo
+    "jean-paul gaultier": "Jean Paul Gaultier",
+    # Calvin Klein
+    "ck": "Calvin Klein",
+    "calvin klein": "Calvin Klein",
+    # Dolce & Gabbana
+    "d&g": "Dolce & Gabbana",
+    "dg": "Dolce & Gabbana",
+    "dolce & gabbana": "Dolce & Gabbana",
+    "dolce&gabbana": "Dolce & Gabbana",
+    "dolce gabbana": "Dolce & Gabbana",
+    # Carolina Herrera (Ch es ambiguo con Chanel — pero Chanel SIEMPRE se escribe
+    # completo, así que "Ch" solo lo usan vendedores de CH)
+    "ch": "Carolina Herrera",
+    "carolina herrera": "Carolina Herrera",
+    # Paco Rabanne (rebranded a Rabanne pero unificamos)
+    "paco rabanne": "Paco Rabanne",
+    "rabanne": "Paco Rabanne",
+    # Hugo Boss
+    "boss": "Hugo Boss",
+    "hugo boss": "Hugo Boss",
+    "hugo": "Hugo Boss",
+    # Tommy Hilfiger
+    "tommy hilfiger": "Tommy Hilfiger",
+    "tommy hilfinger": "Tommy Hilfiger",  # typo
+    "tommy": "Tommy Hilfiger",
+    # Tom Ford (mantener separado de Tommy Bahama/Hilfiger)
+    "tom ford": "Tom Ford",
+    # Giorgio Armani
+    "giorgio armani": "Giorgio Armani",
+    "armani": "Giorgio Armani",
+    "emporio armani": "Giorgio Armani",
+    "armani prive": "Giorgio Armani",
+    # Versace
+    "versace": "Versace",
+    # Lancôme
+    "lancome": "Lancôme",
+    "lancôme": "Lancôme",
+    # Marcas árabes populares (variantes de casing)
+    "lattafa": "Lattafa",
+    "armaf": "Armaf",
+    "afnan": "Afnan",
+    "rasasi": "Rasasi",
+    "ajmal": "Ajmal",
+    "maison alhambra": "Maison Alhambra",
+    "fragrance world": "Fragrance World",
+    "al haramain": "Al Haramain",
+    "haramain": "Al Haramain",
+    "khadlaj": "Khadlaj",
+    "swiss arabian": "Swiss Arabian",
+    "paris corner": "Paris Corner",
+    "riiffs": "Riiffs",
+    "grandeur": "Grandeur",
+    "nasamat": "Nasamat",
+    # Otras
+    "victoria's secret": "Victoria's Secret",
+    "victorias secret": "Victoria's Secret",
+    "victoria secret": "Victoria's Secret",
+    "antonio banderas": "Antonio Banderas",
+    "banderas": "Antonio Banderas",
+    "ralph lauren": "Ralph Lauren",
+    "ralph": "Ralph Lauren",
+    "polo ralph lauren": "Ralph Lauren",
+    "polo": "Ralph Lauren",
+    "burberry": "Burberry",
+    "chanel": "Chanel",
+    "dior": "Dior",
+    "christian dior": "Dior",
+    "givenchy": "Givenchy",
+    "guerlain": "Guerlain",
+    "kenzo": "Kenzo",
+    "issey miyake": "Issey Miyake",
+    "issey": "Issey Miyake",
+    "bvlgari": "Bvlgari",
+    "bulgari": "Bvlgari",
+    "moschino": "Moschino",
+    "viktor & rolf": "Viktor & Rolf",
+    "viktor&rolf": "Viktor & Rolf",
+    "marc jacobs": "Marc Jacobs",
+    "guess": "Guess",
+    "ariana grande": "Ariana Grande",
+    "britney spears": "Britney Spears",
+    "katy perry": "Katy Perry",
+    "jennifer lopez": "Jennifer Lopez",
+    "j lo": "Jennifer Lopez",
+    "jlo": "Jennifer Lopez",
+    "abercrombie & fitch": "Abercrombie & Fitch",
+    "abercrombie": "Abercrombie & Fitch",
+    "hollister": "Hollister",
+    "axe": "Axe",
+    "old spice": "Old Spice",
+    "nautica": "Nautica",
+    "playboy": "Playboy",
+    "adidas": "Adidas",
+    "puma": "Puma",
+    "diesel": "Diesel",
+    "estee lauder": "Estée Lauder",
+    "estée lauder": "Estée Lauder",
+    "narciso rodriguez": "Narciso Rodriguez",
+    "narciso": "Narciso Rodriguez",
+    "by kilian": "By Kilian",
+    "kilian": "By Kilian",
+    "creed": "Creed",
+    "maison francis kurkdjian": "Maison Francis Kurkdjian",
+    "mfk": "Maison Francis Kurkdjian",
+    "kurkdjian": "Maison Francis Kurkdjian",
+    "amouage": "Amouage",
+    "memo": "Memo",
+    "xerjoff": "Xerjoff",
+    "parfums de marly": "Parfums de Marly",
+    "marly": "Parfums de Marly",
+    "roja": "Roja Parfums",
+    "roja parfums": "Roja Parfums",
+    "clive christian": "Clive Christian",
+    "tiziana terenzi": "Tiziana Terenzi",
+    "mancera": "Mancera",
+    "montale": "Montale",
+    "le labo": "Le Labo",
+    "diptyque": "Diptyque",
+    "byredo": "Byredo",
+    "maison margiela": "Maison Margiela",
+    "margiela": "Maison Margiela",
+    "lacoste": "Lacoste",
+    "azzaro": "Azzaro",
+    "paco": "Paco Rabanne",
+    "generico": "Genérico",
+    "genérico": "Genérico",
+    # Acentos: forma canónica con acento (versión genuina española)
+    "adolfo dominguez": "Adolfo Domínguez",
+    "adolfo domínguez": "Adolfo Domínguez",
+    "bebe": "Bebé",
+    "bebé": "Bebé",
+    "aco": "Aco",
+    "benjamin vicuna": "Benjamín Vicuña",
+    "benjamin vicuña": "Benjamín Vicuña",
+    "benjamín vicuna": "Benjamín Vicuña",
+    "benjamín vicuña": "Benjamín Vicuña",
+    "pierre cardin": "Pierre Cardin",  # nombre francés sin acento (oficial)
+    "pierre cardín": "Pierre Cardin",
+    "pamela diaz": "Pamela Díaz",
+    "pamela díaz": "Pamela Díaz",
+    # Typos específicos detectados en auditoría
+    "girogio armani": "Giorgio Armani",
+}
+
+
+def canonicalize_brand(raw: str | None) -> str | None:
+    """Devuelve la forma canónica de una marca. Maneja casing, acentos, aliases."""
+    if not raw:
+        return None
+    # Trim + colapsar whitespace
+    cleaned = re.sub(r"\s+", " ", raw.strip())
+    # Lookup case-insensitive en alias table (sin acentos)
+    key = _strip_accents(cleaned).lower()
+    if key in BRAND_ALIASES:
+        return BRAND_ALIASES[key]
+    # Sin alias conocido: aplicar Title Case y devolver
+    # (excepto siglas todas mayúsculas: si tiene 2-3 chars y todas mayúsculas, mantener)
+    if cleaned.isupper() and len(cleaned) <= 3:
+        return cleaned
+    return cleaned.title().replace("'S", "'s").replace("&", "&")
+
+
 # Marcas conocidas (lowercased keys). Se expande con el tiempo.
 KNOWN_BRANDS = {
     "armaf", "lattafa", "afnan", "rasasi", "ajmal", "khadlaj", "dolce & gabbana",
@@ -44,6 +221,17 @@ KNOWN_BRANDS = {
     "michael kors", "kors", "perry ellis", "ellis", "cuba", "lomani", "swiss arabian",
     "al haramain", "haramain", "nasamat", "fragrance world", "milestone",
     "emporio armani", "armani", "giorgio armani", "bond no 9", "bond no. 9",
+    # Marcas clone / dupes verificadas (NO incluir nombres de productos)
+    "beas", "risala", "elite risala", "dumont", "dumont paris", "milestone",
+    "louis varel", "louis cardin", "designer shaik", "shaik", "al wisam",
+    "al rehab", "ard al zaafaran", "ardal", "kayali", "initio",
+    "initio parfums", "nishane", "boadicea", "boadicea the victorious",
+    "frederic malle", "atelier des ors", "carner barcelona",
+    "essential parfums", "histoires de parfums", "stephane humbert lucas",
+    "ex nihilo", "thameen", "amouroud", "nasamatto", "nasamat", "orto parisi",
+    "vilhelm parfumerie", "franck boclet", "matiere premiere",
+    "puredistance", "lalique", "molinard", "houbigant", "caron",
+    "etat libre d'orange", "francesca bianchi", "rance",
 }
 
 # Géneros: "homme"/"femme" NO van aquí porque son parte de nombres de perfume
@@ -129,13 +317,24 @@ def _extract_gender(title: str) -> str | None:
 
 
 def _extract_brand(title: str) -> str | None:
-    """Match marca conocida en cualquier posición del título."""
+    """Match marca conocida en el título. Prioriza la marca que aparece PRIMERO
+    en el texto (típicamente el emisor real; el resto son clones / inspirados en).
+
+    Empate de posición → marca más larga gana (ej. "Dolce & Gabbana" sobre "Dolce").
+    """
     t = _strip_accents(title).lower()
-    # Ordena por longitud descendente para preferir "dolce & gabbana" sobre "dolce"
-    for brand in sorted(KNOWN_BRANDS, key=len, reverse=True):
-        if re.search(rf"\b{re.escape(brand)}\b", t):
-            return brand.title().replace("&", "&")
-    return None
+    # Quitar prefijo "Perfume" / "PERFUME" para no afectar la búsqueda por posición
+    t = re.sub(r"^\s*perfume\s+", "", t, flags=re.IGNORECASE)
+
+    matches: list[tuple[int, int, str]] = []  # (posición, -longitud, brand_key)
+    for brand in KNOWN_BRANDS:
+        m = re.search(rf"\b{re.escape(brand)}\b", t)
+        if m:
+            matches.append((m.start(), -len(brand), brand))
+    if not matches:
+        return None
+    matches.sort()
+    return matches[0][2].title().replace("&", "&")
 
 
 def _clean_name(title: str, brand: str | None, concentration: str | None, volume: int | None) -> str:
@@ -166,22 +365,31 @@ def normalize(title: str, fallback_brand: str | None = None) -> NormalizedProduc
     """Devuelve None si no se pudo extraer marca o volumen (datos insuficientes)."""
     title = title.strip()
 
-    # Pre-clean: matar "inspirado en X" antes de detectar marca para no confundir
+    # Extraer volumen y concentración del título ORIGINAL — el pre-clean (que mata
+    # "clon X..." y similares) puede eliminar el "100 ML" final.
+    volume = _extract_volume(title)
+    if volume is None:
+        return None
+    concentration = _extract_concentration(title)
+    gender = _extract_gender(title)
+
+    # Pre-clean SOLO para detección de marca: elimina referencias a marcas
+    # competidoras ("inspirado en X", "(clone of Y)") para que el _extract_brand
+    # no las confunda con la marca real.
     pre_cleaned = title
     for pattern in PRE_BRAND_NOISE:
         pre_cleaned = re.sub(pattern, "", pre_cleaned, flags=re.IGNORECASE)
 
-    volume = _extract_volume(pre_cleaned)
-    if volume is None:
+    raw_brand = _extract_brand(pre_cleaned) or fallback_brand
+    if not raw_brand:
         return None
 
-    brand = _extract_brand(pre_cleaned) or fallback_brand
+    # Pasa la marca por el canonicalizador: une casing/aliases/typos.
+    brand = canonicalize_brand(raw_brand)
     if not brand:
         return None
 
-    concentration = _extract_concentration(pre_cleaned)
-    gender = _extract_gender(pre_cleaned)
-    name = _clean_name(pre_cleaned, brand, concentration, volume)
+    name = _clean_name(pre_cleaned, raw_brand, concentration, volume)
     if not name:
         return None
 

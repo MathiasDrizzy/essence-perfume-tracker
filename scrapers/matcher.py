@@ -64,5 +64,9 @@ def find_or_create(session: Session, norm: NormalizedProduct) -> Perfume:
         return session.execute(
             select(Perfume).where(Perfume.canonical_slug == norm.canonical_slug)
         ).scalar_one()
-    session.expire_all()
-    return session.get(Perfume, new_id)
+    # OJO: no usar `session.expire_all()` aquí — invalida cambios pendientes en
+    # otras filas que aún no han sido flusheadas (rompe los UPDATE de listings
+    # en migraciones masivas). En su lugar hacemos un SELECT directo del nuevo id.
+    return session.execute(
+        select(Perfume).where(Perfume.id == new_id)
+    ).scalar_one()
