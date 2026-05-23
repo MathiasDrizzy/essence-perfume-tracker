@@ -1,0 +1,65 @@
+name: probe-ml
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install deps
+        run: uv sync --frozen
+      - name: Probe MercadoLibre API from datacenter IP
+        env:
+          ML_CLIENT_ID: ${{ secrets.ML_CLIENT_ID }}
+          ML_CLIENT_SECRET: ${{ secrets.ML_CLIENT_SECRET }}
+        run: |
+          uv run python <<'PY'
+          import os, urllib.parse
+          from curl_cffi import requests
+
+          cid = os.environ["ML_CLIENT_ID"]
+          sec = os.environ["ML_CLIENT_SECRET"]
+
+          # Step 1: Get app token via client_credentials
+          tok = requests.post(
+              "https://api.mercadolibre.com/oauth/token",
+              data=urllib.parse.urlencode({
+                  "grant_type": "client_credentials",
+                  "client_id": cid,
+                  "client_secret": sec,
+              }),
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+              impersonate="chrome131",
+              timeout=10,
+          )
+          print(f"Token request: HTTP {tok.status_code}")
+          if tok.status_code != 200:
+              print("  Body:", tok.text[:300])
+              raise SystemExit(1)
+          access_token = tok.json()["access_token"]
+          print(f"  Got token ({len(access_token)} chars)")
+
+          # Step 2: Try multiple endpoints with the token
+          h = {"Authorization": f"Bearer {access_token}"}
+          urls = [
+              "https://api.mercadolibre.com/sites/MLC",
+              "https://api.mercadolibre.com/sites/MLC/categories",
+              "https://api.mercadolibre.com/categories/MLC1276",
+              "https://api.mercadolibre.com/items/MLC22316395",
+              "https://api.mercadolibre.com/products/MLC22316395",
+              "https://api.mercadolibre.com/sites/MLC/search?q=armaf+odyssey&limit=3",
+              "https://api.mercadolibre.com/sites/MLC/search?category=MLC1276&limit=3",
+          ]
+          for u in urls:
+              r = requests.get(u, headers=h, impersonate="chrome131", timeout=15)
+              snippet = r.text[:100].replace('\n','')
+              print(f"  {r.status_code} ({len(r.text):>6} B)  {u[:80]}")
+              if r.status_code == 200 and "search" in u:
+                  data = r.json()
+                  print(f"    total={data.get('paging', {}).get('total')}")
+                  for it in data.get('results', [])[:2]:
+                      print(f"      {it.get('id')}  ${it.get('price')}  {it.get('title')[:55]}")
+          PY
