@@ -165,7 +165,8 @@ class RipleyScraper(BaseScraper):
     @staticmethod
     def _card_to_raw(card: dict) -> RawProduct | None:
         # Intenta extraer marca del comienzo del título (mayúsculas seguidas)
-        title = card["title"]
+        # Strip trailing " - N" (número de posición que Ripley agrega al alt de imágenes)
+        title = re.sub(r"\s*-\s*\d+\s*$", "", card["title"]).strip()
         brand_match = re.match(r"^(?:PERFUME\s+(?:MUJER\s+|HOMBRE\s+|UNISEX\s+)?)?([A-Z][A-Z &]+?)(?:\s+[A-Z]?[a-z])", title)
         fallback_brand = brand_match.group(1).strip().title() if brand_match else None
 

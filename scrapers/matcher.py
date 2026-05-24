@@ -68,7 +68,7 @@ class PerfumeCache:
         best_score = 0
         best_id: int | None = None
         for cname, cid in candidates:
-            score = fuzz.token_set_ratio(cname.lower(), name_lower)
+            score = fuzz.token_sort_ratio(cname.lower(), name_lower)
             if score >= FUZZY_THRESHOLD and score > best_score:
                 best_score = score
                 best_id = cid
@@ -107,7 +107,7 @@ def find_or_create(
         ).scalars().all()
         best: tuple[Perfume, float] | None = None
         for c in candidates:
-            score = fuzz.token_set_ratio(c.name.lower(), norm.name.lower())
+            score = fuzz.token_sort_ratio(c.name.lower(), norm.name.lower())
             if score >= FUZZY_THRESHOLD and (best is None or score > best[1]):
                 best = (c, score)
         if best:

@@ -281,12 +281,29 @@ PRE_BRAND_NOISE = [
     r"\([^()]*\)\s*$",
 ]
 
+# Productos que NO son perfumes aunque tengan marca conocida + volumen. Se detectan
+# por palabras clave en el título y se rechazan antes de insertar al catálogo.
+NON_PERFUME_BLOCK = re.compile(
+    r"\b(desodoran\w+|deo\s+spray|shampoo|champ[uú]|esmalte"
+    r"|acondicionador|conditioner|cabello|hair\s+(?:mask|treatment|care)"
+    r"|loreal\s+professionnel|loréal\s+professionnel"
+    r"|gel\s+de\s+(?:ducha|baño)|shower\s+gel(?!\s*estuche)"
+    r"|crema\s+(?:corporal|hidratante|de\s+manos)"
+    r"|body\s+(?:lotion|cream|scrub)"
+    r"|locion\s+corporal|loción\s+corporal"
+    r"|alcohol\s+gel|hand\s+sanitiz)\b",
+    re.IGNORECASE,
+)
+
 # Patrones de ruido en el nombre final (corren DESPUÉS de extraer marca/conc/vol/género)
 NOISE_WORDS = [
     r"\bperfume\b", r"\boriginal\b", r"\btester\b", r"\bprobador\b", r"\bnuevo\b",
     r"\bsellado\b", r"\bsealed\b", r"\benvio\s+gratis\b", r"\benvío\s+gratis\b",
     r"\bset\b\s*\(.*?\)", r"\(\s*tester\s*\)", r"\(\s*probador\s*\)",
     r"\bspray\b", r"\bfor\b",
+    # MercadoLibre: info del vendedor que no es parte del nombre del perfume
+    r"[-–—]\s*distribuidor\s+autorizado\b.*$",
+    r"\bdistribuidor\s+autorizado\b.*$",
 ]
 
 
@@ -404,6 +421,8 @@ def _clean_name(title: str, brand: str | None, concentration: str | None, volume
 def normalize(title: str, fallback_brand: str | None = None) -> NormalizedProduct | None:
     """Devuelve None si no se pudo extraer marca o volumen (datos insuficientes)."""
     title = title.strip()
+    if NON_PERFUME_BLOCK.search(title):
+        return None
 
     # Extraer volumen y concentración del título ORIGINAL — el pre-clean (que mata
     # "clon X..." y similares) puede eliminar el "100 ML" final.
