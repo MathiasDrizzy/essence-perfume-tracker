@@ -25,7 +25,7 @@ log = structlog.get_logger()
 
 SITEMAP_URL = "https://sairam.cl/sitemap.xml"
 SITE_BASE = "https://sairam.cl"
-CONCURRENCY = 6  # respeta al servidor
+CONCURRENCY = 25  # sairam aguanta. 4200 URLs / 25 = ~168 batches
 
 # Path prefixes que indican producto (encontrados al inspeccionar el sitemap)
 PRODUCT_PREFIXES = ("/es/perfume-", "/es/body-mist-", "/es/desodorante-", "/es/loción-", "/es/locion-")

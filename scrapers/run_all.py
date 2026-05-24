@@ -30,10 +30,12 @@ log = structlog.get_logger()
 
 # Cada scraper se importa lazy en su runner para no cargar Playwright/Camoufox
 # innecesariamente cuando se filtra con --only.
-def _shopify_all() -> None:
-    from scrapers.shopify import SHOPIFY_SITES, ShopifyScraper
-    for key, url in SHOPIFY_SITES.items():
-        ShopifyScraper(key, url).run()
+def _shopify_factory(site_key: str):
+    """Construye un runner Shopify para un site específico."""
+    def _runner() -> None:
+        from scrapers.shopify import SHOPIFY_SITES, ShopifyScraper
+        ShopifyScraper(site_key, SHOPIFY_SITES[site_key]).run()
+    return _runner
 
 
 def _ml() -> None:
@@ -61,8 +63,15 @@ def _falabella() -> None:
     FalabellaScraper().run()
 
 
+# Cada Shopify site corre como tarea independiente en el ThreadPool. Antes
+# tomaban ~35min en serie (silkperfumes 22min + productosdelujo 12min + …);
+# ahora corren en paralelo y la duración total = MAX individual ≈ silkperfumes.
 SCRAPERS: dict[str, callable] = {
-    "shopify": _shopify_all,
+    "silkperfumes": _shopify_factory("silkperfumes"),
+    "productosdelujo": _shopify_factory("productosdelujo"),
+    "multimarcasperfumes": _shopify_factory("multimarcasperfumes"),
+    "alishaperfumes": _shopify_factory("alishaperfumes"),
+    "eliteperfumes": _shopify_factory("eliteperfumes"),
     "mercadolibre": _ml,
     "sairam": _sairam,
     "paris": _paris,
@@ -78,7 +87,7 @@ SCRAPERS: dict[str, callable] = {
     type=click.Choice(list(SCRAPERS.keys())),
     help="Run only specific scrapers (default: all). Repeatable.",
 )
-@click.option("--workers", type=int, default=5, help="Parallel scraper workers.")
+@click.option("--workers", type=int, default=6, help="Parallel scraper workers.")
 @click.option("--skip-alerts", is_flag=True, help="Don't run alerts check at the end.")
 @click.option("--skip-verify", is_flag=True, help="Don't run URL verifier at the end.")
 def main(only: tuple[str, ...], workers: int, skip_alerts: bool, skip_verify: bool) -> None:

@@ -12,6 +12,7 @@ import json
 import re
 import time
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from math import ceil
 
 import click
@@ -27,6 +28,9 @@ log = structlog.get_logger()
 SEARCH_URL = "https://www.falabella.com/falabella-cl/search"
 SEARCH_TERM = "perfume"
 PAGE_SIZE = 48
+# Páginas a fetchear en paralelo. Antes secuencial: 210 pages × ~9s = 33 min.
+# Con 4 paralelas: ~210/4 × 9s = ~8 min.
+PAGE_BATCH = 8
 
 NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
@@ -45,30 +49,52 @@ class FalabellaScraper(BaseScraper):
         with cc_requests.Session(impersonate="chrome131") as s:
             s.headers.update({"accept-language": "es-CL,es;q=0.9"})
 
-            data = self._fetch_page(s, 1)
-            pp = data["props"]["pageProps"]
+            # Fetch página 1 sincrónico para obtener total y los primeros productos
+            data1 = self._fetch_page(s, 1)
+            pp = data1["props"]["pageProps"]
             total = pp.get("pagination", {}).get("count", 0)
             total_pages = ceil(total / PAGE_SIZE) if total else 1
             if self.max_pages:
                 total_pages = min(total_pages, self.max_pages)
             log.info("falabella_start", total=total, pages=total_pages)
 
-            for page in range(1, total_pages + 1):
-                if page > 1:
-                    data = self._fetch_page(s, page)
-                results = data["props"]["pageProps"].get("results") or []
-                new = 0
-                for p in results:
-                    pid = str(p.get("productId") or "")
-                    if not pid or pid in seen_ids:
-                        continue
-                    seen_ids.add(pid)
-                    raw = self._to_raw(p)
-                    if raw:
-                        new += 1
-                        yield raw
-                log.info("falabella_page", page=page, batch=len(results), new=new, kept=len(seen_ids))
-                time.sleep(settings.scrape_request_delay_sec)
+            # Procesar primera página
+            for raw in self._yield_results(data1, seen_ids, 1):
+                yield raw
+
+            # Fetch páginas 2..total_pages en batches de PAGE_BATCH paralelos.
+            with ThreadPoolExecutor(max_workers=PAGE_BATCH) as ex:
+                page = 2
+                while page <= total_pages:
+                    pages_in_batch = list(range(page, min(page + PAGE_BATCH, total_pages + 1)))
+                    futures = {ex.submit(self._fetch_page, s, p): p for p in pages_in_batch}
+                    by_page: dict[int, dict] = {}
+                    for fut in futures:
+                        p_num = futures[fut]
+                        try:
+                            by_page[p_num] = fut.result()
+                        except Exception as exc:
+                            log.warning("falabella_page_failed", page=p_num, error=str(exc)[:150])
+                            by_page[p_num] = {}
+                    for p_num in pages_in_batch:
+                        for raw in self._yield_results(by_page.get(p_num) or {}, seen_ids, p_num):
+                            yield raw
+                    page += PAGE_BATCH
+                    time.sleep(min(settings.scrape_request_delay_sec, 0.5))
+
+    def _yield_results(self, data: dict, seen_ids: set, page_num: int) -> Iterable[RawProduct]:
+        results = (data.get("props") or {}).get("pageProps", {}).get("results") or []
+        new = 0
+        for p in results:
+            pid = str(p.get("productId") or "")
+            if not pid or pid in seen_ids:
+                continue
+            seen_ids.add(pid)
+            raw = self._to_raw(p)
+            if raw:
+                new += 1
+                yield raw
+        log.info("falabella_page", page=page_num, batch=len(results), new=new, kept=len(seen_ids))
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=20))
     def _fetch_page(self, s, page: int) -> dict:

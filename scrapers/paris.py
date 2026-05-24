@@ -67,7 +67,8 @@ class ParisScraper(BaseScraper):
                 if total and page * PAGE_SIZE >= total:
                     break
                 page += 1
-                time.sleep(settings.scrape_request_delay_sec)
+                # delay reducido para curl_cffi (ligero, sin rate-limit observado)
+                time.sleep(min(settings.scrape_request_delay_sec, 0.8))
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=20))
     def _fetch_page(self, s, page: int) -> dict:

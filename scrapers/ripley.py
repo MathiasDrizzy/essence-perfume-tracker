@@ -90,7 +90,7 @@ class RipleyScraper(BaseScraper):
                         new += 1
                         yield raw
                 log.info("ripley_page", page=page, batch=len(cards), new=new, kept=len(seen_urls))
-                time.sleep(settings.scrape_request_delay_sec)
+                time.sleep(min(settings.scrape_request_delay_sec, 0.8))
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=20))
     def _fetch_html(self, s, page: int) -> str:

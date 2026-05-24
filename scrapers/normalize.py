@@ -101,6 +101,9 @@ BRAND_ALIASES: dict[str, str] = {
     "ralph": "Ralph Lauren",
     "polo ralph lauren": "Ralph Lauren",
     "polo": "Ralph Lauren",
+    "big pony": "Ralph Lauren",
+    "big pony no. 2": "Ralph Lauren",
+    "ralph": "Ralph Lauren",
     "burberry": "Burberry",
     "chanel": "Chanel",
     "dior": "Dior",
@@ -232,17 +235,34 @@ KNOWN_BRANDS = {
     "vilhelm parfumerie", "franck boclet", "matiere premiere",
     "puredistance", "lalique", "molinard", "houbigant", "caron",
     "etat libre d'orange", "francesca bianchi", "rance",
+    # Más designer brands que faltaban
+    "jimmy choo", "michael kors", "tory burch", "vince camuto",
+    "elizabeth arden", "chloe", "chloé", "miu miu", "prada",
+    "gucci", "fendi", "valentino", "salvatore ferragamo", "ferragamo",
+    "trussardi", "moschino", "cacharel", "armani exchange",
+    "ax armani", "kenneth cole", "perry ellis", "swiss army",
+    "victorinox", "swiss arabian", "swiss",
 }
 
-# Géneros: "homme"/"femme" NO van aquí porque son parte de nombres de perfume
-# (ej: "Pour Homme", "Odyssey Homme White"). Solo señales explícitas en es/en.
-# Las versiones francesas se detectan con "pour homme"/"pour femme" compuestas.
+# Géneros: SOLO señales que claramente NO son parte del nombre del perfume.
+# - "pour homme" / "pour femme" / "for her" / "for him" SE DETECTAN pero NO se
+#   strippean del nombre, porque típicamente SON el nombre ("Carolina Herrera
+#   Pour Femme", "For Her by Narciso Rodriguez").
 GENDER_HINTS = {
-    "hombre": "Hombre", "for men": "Hombre", "pour homme": "Hombre",
+    "hombre": "Hombre", "for men": "Hombre",
     "masculino": "Hombre", "caballero": "Hombre",
-    "mujer": "Mujer", "for women": "Mujer", "pour femme": "Mujer",
+    "mujer": "Mujer", "for women": "Mujer",
     "femenino": "Mujer", "dama": "Mujer",
     "unisex": "Unisex",
+}
+
+# Estos sólo se usan para DETECTAR género (en _extract_gender), pero NO se
+# eliminan en _clean_name.
+GENDER_HINTS_DETECT_ONLY = {
+    "pour homme": "Hombre",
+    "pour femme": "Mujer",
+    "for him": "Hombre",
+    "for her": "Mujer",
 }
 
 # Patrones de ruido que se eliminan ANTES de detectar marca (matan claims rivales).
@@ -291,13 +311,26 @@ def _slugify(s: str) -> str:
 
 
 def _extract_volume(title: str) -> int | None:
-    """Encuentra '100ml', '100 ML', '100 ml', '3.4 oz' (→ ~100ml)."""
-    m = re.search(r"(\d{2,4})\s*(?:ml|m\.l\.|millilit)", title, re.IGNORECASE)
+    """Encuentra '100ml', '100 ML', '100 ml', '3.4 oz' (→ ~100ml).
+
+    Fallback: si título tiene 'EDP 100' / 'EDT 50' (concentración + número sin
+    'ml'), asume ml. Solo si el número es un volumen plausible (5-1000)."""
+    m = re.search(r"(\d{2,4})\s*(?:ml|m\.l\.|millilit)\b", title, re.IGNORECASE)
     if m:
         return int(m.group(1))
     m = re.search(r"(\d+(?:\.\d+)?)\s*oz\b", title, re.IGNORECASE)
     if m:
         return round(float(m.group(1)) * 29.5735)
+    # Fallback: concentración + número (ej. "EDP 100", "EDT 50")
+    m = re.search(
+        r"\b(?:edp|edt|edc|parfum|cologne|colonia)\s+(\d{1,4})\b",
+        title,
+        re.IGNORECASE,
+    )
+    if m:
+        v = int(m.group(1))
+        if 5 <= v <= 1000:  # rango plausible para perfume
+            return v
     return None
 
 
@@ -310,7 +343,12 @@ def _extract_concentration(title: str) -> str | None:
 
 def _extract_gender(title: str) -> str | None:
     t = " " + title.lower() + " "
+    # Detección por hints explícitos (strippeables del nombre)
     for hint, gender in GENDER_HINTS.items():
+        if f" {hint} " in t or t.endswith(f" {hint}"):
+            return gender
+    # Detección por hints que NO se strippean (suelen ser parte del nombre)
+    for hint, gender in GENDER_HINTS_DETECT_ONLY.items():
         if f" {hint} " in t or t.endswith(f" {hint}"):
             return gender
     return None
@@ -325,6 +363,8 @@ def _extract_brand(title: str) -> str | None:
     t = _strip_accents(title).lower()
     # Quitar prefijo "Perfume" / "PERFUME" para no afectar la búsqueda por posición
     t = re.sub(r"^\s*perfume\s+", "", t, flags=re.IGNORECASE)
+    # Normalizar " AND " → " & " para que matchee con brands tipo "dolce & gabbana"
+    t = re.sub(r"\s+and\s+", " & ", t, flags=re.IGNORECASE)
 
     matches: list[tuple[int, int, str]] = []  # (posición, -longitud, brand_key)
     for brand in KNOWN_BRANDS:
@@ -390,8 +430,16 @@ def normalize(title: str, fallback_brand: str | None = None) -> NormalizedProduc
         return None
 
     name = _clean_name(pre_cleaned, raw_brand, concentration, volume)
+    # Si tras limpiar el nombre queda vacío, es porque el producto es "el base"
+    # de la marca (e.g. "Dolce & Gabbana Pour Femme Edp 100ML" → name vacío).
+    # Usamos el género detectado como nombre, o un fallback genérico.
     if not name:
-        return None
+        if gender == "Hombre":
+            name = "Pour Homme"
+        elif gender == "Mujer":
+            name = "Pour Femme"
+        else:
+            name = "Original"
 
     slug = _slugify(f"{brand} {name} {concentration or ''} {volume}")
     return NormalizedProduct(

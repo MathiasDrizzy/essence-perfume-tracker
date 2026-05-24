@@ -12,11 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from scrapers.db import session_scope
-from scrapers.matcher import find_or_create
+from scrapers.matcher import PerfumeCache, find_or_create
 from scrapers.models import Listing, PriceHistory, ScrapeRun
 from scrapers.normalize import normalize
 
 log = structlog.get_logger()
+
+# Cuántos rows de price_history acumular antes de hacer un INSERT bulk a Postgres.
+# Reduce round-trips: N inserts individuales → N/PH_BATCH_SIZE inserts bulk.
+PH_BATCH_SIZE = 100
 
 
 class RawProduct(BaseModel):
@@ -40,39 +44,39 @@ class BaseScraper(ABC):
     def fetch_products(self) -> Iterable[RawProduct]:
         """Yieldea productos crudos. Implementación específica por retailer."""
 
-    def _upsert_one(self, session, raw: "RawProduct", norm) -> None:
-        """Una pasada DB para un solo producto. Corre dentro de un SAVEPOINT."""
-        perfume = find_or_create(session, norm)
+    def _upsert_listing(self, session, raw: "RawProduct", norm, cache: PerfumeCache | None = None) -> int:
+        """Crea/actualiza perfume + listing y retorna listing.id.
 
-        listing = session.execute(
-            select(Listing).where(
-                Listing.retailer == raw.retailer,
-                Listing.url == raw.url,
-            )
-        ).scalar_one_or_none()
-        if listing is None:
-            listing = Listing(
+        Usa UPSERT inline (`INSERT … ON CONFLICT DO UPDATE … RETURNING id`) en
+        vez de SELECT + INSERT/UPDATE: reduce a 1 round-trip a Postgres por
+        producto. Crítico para retailers grandes (productosdelujo 10k+).
+        """
+        perfume = find_or_create(session, norm, cache=cache)
+        stmt = (
+            pg_insert(Listing)
+            .values(
                 perfume_id=perfume.id,
                 retailer=raw.retailer,
                 retailer_sku=raw.retailer_sku,
                 url=raw.url,
                 title_raw=raw.title,
             )
-            session.add(listing)
-            session.flush()
-        elif listing.perfume_id != perfume.id:
-            # Re-bind si el perfume canónico cambió por mejor normalización.
-            listing.perfume_id = perfume.id
+            .on_conflict_do_update(
+                index_elements=["retailer", "url"],
+                set_={"perfume_id": perfume.id},
+            )
+            .returning(Listing.id)
+        )
+        return session.execute(stmt).scalar()
 
+    @staticmethod
+    def _flush_price_history(session, batch: list[dict]) -> None:
+        """Inserta el batch acumulado de price_history en bulk."""
+        if not batch:
+            return
         stmt = (
             pg_insert(PriceHistory)
-            .values(
-                listing_id=listing.id,
-                scraped_at=datetime.now(UTC),
-                price_clp=raw.price_clp,
-                list_price_clp=raw.list_price_clp,
-                in_stock=raw.in_stock,
-            )
+            .values(batch)
             .on_conflict_do_nothing(index_elements=["listing_id", "scraped_at"])
         )
         session.execute(stmt)
@@ -90,19 +94,23 @@ class BaseScraper(ABC):
             session.flush()
             run_id = run.id
 
+        ph_batch: list[dict] = []
         try:
             with session_scope() as session:
+                # Pre-cargar cache de perfumes existentes (1 SELECT vs N SELECTs)
+                cache = PerfumeCache()
+                cache.load(session)
+                log.info("perfume_cache_loaded", retailer=self.retailer, size=len(cache.slug2id))
+
                 for raw in self.fetch_products():
                     norm = normalize(raw.title, fallback_brand=raw.fallback_brand)
                     if norm is None:
                         skipped += 1
                         continue
-                    # SAVEPOINT por producto: si un único registro rompe (constraint,
-                    # data corrupta), el resto del run sigue. La excepción se loguea
-                    # y solo se pierde ese row.
+                    listing_id: int | None = None
                     try:
                         with session.begin_nested():
-                            self._upsert_one(session, raw, norm)
+                            listing_id = self._upsert_listing(session, raw, norm, cache=cache)
                         scraped += 1
                     except Exception as exc:
                         skipped += 1
@@ -110,6 +118,38 @@ class BaseScraper(ABC):
                             "row_failed",
                             retailer=self.retailer,
                             title=raw.title[:80],
+                            error=str(exc)[:200],
+                        )
+                        continue
+
+                    # Acumular price_history para insert bulk
+                    ph_batch.append({
+                        "listing_id": listing_id,
+                        "scraped_at": datetime.now(UTC),
+                        "price_clp": raw.price_clp,
+                        "list_price_clp": raw.list_price_clp,
+                        "in_stock": raw.in_stock,
+                    })
+                    if len(ph_batch) >= PH_BATCH_SIZE:
+                        try:
+                            self._flush_price_history(session, ph_batch)
+                        except Exception as exc:
+                            log.warning(
+                                "ph_batch_flush_failed",
+                                retailer=self.retailer,
+                                batch_size=len(ph_batch),
+                                error=str(exc)[:200],
+                            )
+                        ph_batch.clear()
+
+                # Flush final del batch restante
+                if ph_batch:
+                    try:
+                        self._flush_price_history(session, ph_batch)
+                    except Exception as exc:
+                        log.warning(
+                            "ph_final_flush_failed",
+                            retailer=self.retailer,
                             error=str(exc)[:200],
                         )
 
