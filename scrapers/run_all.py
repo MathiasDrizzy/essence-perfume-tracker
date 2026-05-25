@@ -38,11 +38,6 @@ def _shopify_factory(site_key: str):
     return _runner
 
 
-def _ml() -> None:
-    from scrapers.mercadolibre import MercadoLibreScraper
-    MercadoLibreScraper().run()
-
-
 def _sairam() -> None:
     from scrapers.jumpseller import JumpsellerScraper
     JumpsellerScraper().run()
@@ -72,7 +67,7 @@ SCRAPERS: dict[str, callable] = {
     "multimarcasperfumes": _shopify_factory("multimarcasperfumes"),
     "alishaperfumes": _shopify_factory("alishaperfumes"),
     "eliteperfumes": _shopify_factory("eliteperfumes"),
-    "mercadolibre": _ml,
+    "lodoro": _shopify_factory("lodoro"),
     "sairam": _sairam,
     "paris": _paris,
     "ripley": _ripley,

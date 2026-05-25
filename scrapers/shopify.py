@@ -35,6 +35,7 @@ SHOPIFY_SITES: dict[str, str] = {
     "multimarcasperfumes": "https://multimarcasperfumes.cl",
     "alishaperfumes": "https://alishaperfumes.cl",
     "eliteperfumes": "https://www.eliteperfumes.cl",
+    "lodoro": "https://www.lodoro.cl",
 }
 
 

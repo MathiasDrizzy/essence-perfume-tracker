@@ -279,6 +279,9 @@ PRE_BRAND_NOISE = [
     r"\bsimilar\s+a\b.*$",
     # Paréntesis con marca alternativa al final del título (común en clones Ripley)
     r"\([^()]*\)\s*$",
+    # Descripción de notas olfativas que Falabella agrega con em-dash al título
+    # "Myslf L Absolu 100ml – Notas Cítricas, Especiadas Y Amaderadas"
+    r"\s+[–—]\s+.*$",
 ]
 
 # Productos que NO son perfumes aunque tengan marca conocida + volumen. Se detectan
@@ -304,6 +307,9 @@ NOISE_WORDS = [
     # MercadoLibre: info del vendedor que no es parte del nombre del perfume
     r"[-–—]\s*distribuidor\s+autorizado\b.*$",
     r"\bdistribuidor\s+autorizado\b.*$",
+    # Códigos internos de retailer (productosdelujo): YSL106, LATT382, CARO239, LATTALH367…
+    # Patrón: 2-10 letras mayúsculas seguidas de 3+ dígitos
+    r"\b[A-Z]{2,10}\d{3,}\b",
 ]
 
 
@@ -411,6 +417,8 @@ def _clean_name(title: str, brand: str | None, concentration: str | None, volume
     # Remueve ruido (incluye "for" suelto que sobrevive a "for men")
     for pattern in NOISE_WORDS:
         name = re.sub(pattern, "", name, flags=re.IGNORECASE)
+    # YSL rebranding: "Myself" y "MYSLF" son el mismo perfume
+    name = re.sub(r"\bmyself\b", "MYSLF", name, flags=re.IGNORECASE)
     # Limpia paréntesis vacíos y separadores colgando
     name = re.sub(r"\(\s*\)", "", name)
     name = re.sub(r"[\-\|·–—]+", " ", name)
