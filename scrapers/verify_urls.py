@@ -33,6 +33,9 @@ log = structlog.get_logger()
 
 PER_DOMAIN_DELAY_SEC = 0.25
 DEAD_STATUS_CODES = {404, 410}
+# Timeout conservador: suficiente para respuestas lentas pero no catastrófico
+# si un dominio rate-limita (antes 20s causaba ~46h en silkperfumes)
+REQUEST_TIMEOUT_SEC = 8
 
 
 def _domain_of(url: str) -> str:
@@ -41,22 +44,19 @@ def _domain_of(url: str) -> str:
 
 async def _verify_single(s: AsyncSession, url: str) -> bool:
     """True = vivo. False = muerto. Solo HTTP 404/410 cuenta como muerto."""
-    for attempt in (1, 2):
-        try:
-            r = await s.get(url, allow_redirects=True)
-        except Exception:
-            if attempt == 2:
-                return True  # transient — asumimos vivo
-            await asyncio.sleep(1.0)
-            continue
-        if r.status_code in DEAD_STATUS_CODES:
-            # Confirmar con segundo intento — algunos sites devuelven 404 transient
-            if attempt == 1:
-                await asyncio.sleep(1.0)
-                continue
-            return False
+    try:
+        r = await s.get(url, allow_redirects=True, timeout=REQUEST_TIMEOUT_SEC)
+    except Exception:
+        return True  # timeout/error transient — asumimos vivo
+    if r.status_code not in DEAD_STATUS_CODES:
         return True
-    return True
+    # Confirmar 404/410 con segundo intento — algunos sites los devuelven transient
+    await asyncio.sleep(1.0)
+    try:
+        r2 = await s.get(url, allow_redirects=True, timeout=REQUEST_TIMEOUT_SEC)
+        return r2.status_code not in DEAD_STATUS_CODES
+    except Exception:
+        return True  # si el retry falla, asumimos vivo
 
 
 async def _process_domain(
@@ -94,7 +94,7 @@ async def verify_all(only_retailer: str | None, limit: int | None) -> dict[str, 
     stats_per_retailer: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     dead_ids: list[int] = []
 
-    async with AsyncSession(impersonate="chrome131", timeout=20) as s:
+    async with AsyncSession(impersonate="chrome131", timeout=REQUEST_TIMEOUT_SEC) as s:
         s.headers.update({"accept-language": "es-CL,es;q=0.9"})
 
         async def domain_task(domain: str, rows: list[tuple[int, str, str]]):
