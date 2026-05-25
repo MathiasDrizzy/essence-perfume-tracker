@@ -108,7 +108,8 @@ def main(only: tuple[str, ...], workers: int, skip_alerts: bool, skip_verify: bo
 
     if not skip_verify:
         try:
-            stats = asyncio.run(verify_all(only_retailer=None, limit=None))
+            verify_retailer = only[0] if len(only) == 1 else None
+            stats = asyncio.run(verify_all(only_retailer=verify_retailer, limit=None))
             log.info("verify_done", stats=stats)
         except Exception as exc:
             log.error("verify_failed", error=str(exc)[:300])
