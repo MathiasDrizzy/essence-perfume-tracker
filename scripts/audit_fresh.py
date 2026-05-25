@@ -29,6 +29,7 @@ SHOPIFY_SITES = {
     "multimarcasperfumes": "https://multimarcasperfumes.cl",
     "alishaperfumes": "https://alishaperfumes.cl",
     "eliteperfumes": "https://www.eliteperfumes.cl",
+    "lodoro": "https://www.lodoro.cl",
 }
 
 
@@ -184,7 +185,7 @@ def odyssey_retailers(conn) -> list[tuple[str, int, int]]:
 def main() -> None:
     conn = psycopg.connect(DB_URL)
     retailers = ["silkperfumes", "productosdelujo", "multimarcasperfumes", "alishaperfumes",
-                 "eliteperfumes", "sairam", "paris", "ripley", "falabella", "mercadolibre"]
+                 "eliteperfumes", "lodoro", "sairam", "paris", "ripley", "falabella"]
 
     # --- Criterio 1: cobertura ---
     print("=" * 70)
@@ -193,18 +194,14 @@ def main() -> None:
     cov_results: dict[str, tuple[int, Optional[int], bool]] = {}
     for r in retailers:
         db_n = db_active_count(conn, r)
-        if r == "mercadolibre":
-            total = None
-            ok = True  # exento (IP flageada)
-        else:
-            total = total_for(r)
-            # ripley/falabella: su "total" incluye toda la categoría perfumería
-            # (body sprays, desodorantes, etc.); el scraper filtra solo perfumes,
-            # por lo que el threshold real alcanzable es ~40-50%.
-            threshold = 0.40 if r in ("ripley", "falabella") else 0.70
-            ok = (total is None) or (total == 0) or (db_n / total >= threshold)
+        total = total_for(r)
+        # ripley/falabella: su "total" incluye toda la categoría perfumería
+        # (body sprays, desodorantes, etc.); el scraper filtra solo perfumes,
+        # por lo que el threshold real alcanzable es ~40-50%.
+        threshold = 0.40 if r in ("ripley", "falabella") else 0.70
+        ok = (total is None) or (total == 0) or (db_n / total >= threshold)
         cov_results[r] = (db_n, total, ok)
-        pct = f"{100*db_n/total:.0f}%" if total else ("flag" if r == "mercadolibre" else "?")
+        pct = f"{100*db_n/total:.0f}%" if total else "?"
         flag = "✓" if ok else "✗"
         print(f"  {flag} {r:<22} {db_n:>6} / {str(total) if total else '—':>6}  {pct:>5}")
 

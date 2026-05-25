@@ -5,7 +5,7 @@ Estrategia de paralelismo:
   paralelo con un ThreadPool. Son independientes (cada uno abre su sesión HTTP y
   su sesión SQLAlchemy) y solo comparten la DB, donde los SAVEPOINT por producto
   + UPSERT por slug hacen el insert seguro entre runs concurrentes.
-- Scrapers pesados (MercadoLibre con Playwright, Ripley con paginación larga)
+- Scrapers pesados (Ripley con paginación larga)
   corren también en paralelo pero les damos su propio slot.
 - max_workers configurable. Default 5 — equilibra throughput vs. memoria.
 - Al final, verify_urls limpia muertos y luego dispara alertas Telegram.
